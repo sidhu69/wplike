@@ -7,6 +7,8 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  // Important for Capacitor/Android: use relative asset paths
+  base: './',
   plugins: [
     react(),
     runtimeErrorOverlay(),
