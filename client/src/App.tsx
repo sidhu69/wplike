@@ -18,7 +18,7 @@ import TopHeader from "@/components/layout/top-header";
 
 function AuthenticatedLayout() {
   const [location] = useLocation();
-  
+
   // Pages that should not show navigation
   const hideNav = location.startsWith('/chat/') || location === '/search';
 
