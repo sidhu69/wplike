@@ -1,10 +1,9 @@
-
-import type { CapacitorConfig } from '@capacitor/cli';
+import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.chatapp.mobile',
+  appId: 'com.chatapp.wplike',
   appName: 'ChatApp',
-  webDir: 'dist/public',
+  webDir: 'client/dist',
   server: {
     androidScheme: 'https'
   }
