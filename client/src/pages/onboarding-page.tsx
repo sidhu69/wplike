@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { Camera, Upload } from 'lucide-react';
+import { Upload, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function OnboardingPage() {
   const [, setLocation] = useLocation();
@@ -19,6 +20,7 @@ export default function OnboardingPage() {
   const [name, setName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [debugMessage, setDebugMessage] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -30,88 +32,147 @@ export default function OnboardingPage() {
         setAvatarUrl(reader.result as string);
       };
       reader.readAsDataURL(file);
+      setDebugMessage('Image selected: ' + file.name);
     }
   };
 
   const uploadAvatar = async (): Promise<string | null> => {
     if (!avatarFile || !user) return null;
 
-    const fileExt = avatarFile.name.split('.').pop();
-    const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-    const filePath = `avatars/${fileName}`;
+    try {
+      setDebugMessage('Uploading image...');
+      const fileExt = avatarFile.name.split('.').pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('media')
-      .upload(filePath, avatarFile);
+      const { error: uploadError } = await supabase.storage
+        .from('media')
+        .upload(filePath, avatarFile);
 
-    if (uploadError) {
-      console.error('Upload error:', uploadError);
-      toast({
-        title: 'Upload Failed',
-        description: uploadError.message,
-        variant: 'destructive',
-      });
+      if (uploadError) {
+        setDebugMessage('Upload error: ' + uploadError.message);
+        toast({
+          title: 'Upload Failed',
+          description: uploadError.message,
+          variant: 'destructive',
+        });
+        return null;
+      }
+
+      const { data } = supabase.storage.from('media').getPublicUrl(filePath);
+      setDebugMessage('Image uploaded successfully!');
+      return data.publicUrl;
+    } catch (err: any) {
+      setDebugMessage('Upload exception: ' + err.message);
       return null;
     }
-
-    const { data } = supabase.storage.from('media').getPublicUrl(filePath);
-    return data.publicUrl;
   };
 
   const handleComplete = async () => {
-    if (!name.trim()) {
-      toast({
-        title: 'Name Required',
-        description: 'Please enter your name to continue',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (!user) return;
-
-    setLoading(true);
-
-    let uploadedAvatarUrl = null;
-    if (avatarFile) {
-      uploadedAvatarUrl = await uploadAvatar();
-      if (avatarFile && !uploadedAvatarUrl) {
-        // Upload failed, stop here
-        setLoading(false);
+    try {
+      setDebugMessage('Starting profile creation...');
+      
+      if (!name.trim()) {
+        setDebugMessage('Name is required!');
+        toast({
+          title: 'Name Required',
+          description: 'Please enter your name to continue',
+          variant: 'destructive',
+        });
         return;
       }
-    }
 
-    const { error } = await supabase
-      .from('profiles')
-      .upsert({
+      if (!user) {
+        setDebugMessage('No user found! Please log in again.');
+        toast({
+          title: 'Error',
+          description: 'User session not found. Please log in again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setLoading(true);
+      setDebugMessage('User ID: ' + user.id);
+
+      let uploadedAvatarUrl = null;
+      if (avatarFile) {
+        setDebugMessage('Uploading avatar...');
+        uploadedAvatarUrl = await uploadAvatar();
+        if (avatarFile && !uploadedAvatarUrl) {
+          setLoading(false);
+          return;
+        }
+      } else {
+        setDebugMessage('No avatar selected, skipping upload');
+      }
+
+      setDebugMessage('Saving profile to database...');
+      
+      const profileData = {
         id: user.id,
         name: name.trim(),
         avatar_url: uploadedAvatarUrl,
         updated_at: new Date().toISOString(),
-      });
+      };
 
-    if (error) {
-      console.error('Profile save error:', error);
+      setDebugMessage('Profile data: ' + JSON.stringify(profileData));
+
+      const { error, data } = await supabase
+        .from('profiles')
+        .upsert(profileData)
+        .select();
+
+      if (error) {
+        setDebugMessage('Database error: ' + error.message);
+        console.error('Profile save error:', error);
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to save profile. Please try again.',
+          variant: 'destructive',
+        });
+        setLoading(false);
+      } else {
+        setDebugMessage('Profile saved successfully!');
+        toast({
+          title: 'Profile Created!',
+          description: 'Welcome to ChatApp',
+        });
+        
+        // Wait a moment for toast to show
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 1000);
+      }
+    } catch (err: any) {
+      setDebugMessage('Exception: ' + err.message);
+      console.error('Exception:', err);
       toast({
-        title: 'Error',
-        description: error.message || 'Failed to save profile. Please try again.',
+        title: 'Unexpected Error',
+        description: err.message,
         variant: 'destructive',
       });
       setLoading(false);
-    } else {
-      toast({
-        title: 'Profile Created!',
-        description: 'Welcome to ChatApp',
-      });
-      // Refresh to update auth store
-      window.location.href = '/';
     }
   };
 
   const getInitials = () => {
     return name.trim().split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
   };
+
+  // Check if user exists
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            No user session found. Please log in again.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-primary/10 to-background p-4">
@@ -123,6 +184,15 @@ export default function OnboardingPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Debug Message */}
+          {debugMessage && (
+            <Alert>
+              <AlertDescription className="text-xs">
+                {debugMessage}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {step === 1 ? (
             <div className="space-y-4">
               <div className="space-y-2">
@@ -139,7 +209,10 @@ export default function OnboardingPage() {
                 />
               </div>
               <Button
-                onClick={() => setStep(2)}
+                onClick={() => {
+                  setDebugMessage('Moving to step 2 with name: ' + name);
+                  setStep(2);
+                }}
                 className="w-full"
                 disabled={!name.trim()}
                 data-testid="button-continue"
@@ -159,7 +232,10 @@ export default function OnboardingPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => {
+                      setDebugMessage('Opening file picker...');
+                      fileInputRef.current?.click();
+                    }}
                     data-testid="button-upload"
                   >
                     <Upload className="w-4 h-4 mr-2" />
@@ -172,6 +248,7 @@ export default function OnboardingPage() {
                       onClick={() => {
                         setAvatarFile(null);
                         setAvatarUrl(null);
+                        setDebugMessage('Avatar removed');
                       }}
                     >
                       Remove
@@ -191,7 +268,10 @@ export default function OnboardingPage() {
               <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  onClick={() => setStep(1)}
+                  onClick={() => {
+                    setDebugMessage('Back to step 1');
+                    setStep(1);
+                  }}
                   className="flex-1"
                   disabled={loading}
                   data-testid="button-back"
@@ -199,7 +279,10 @@ export default function OnboardingPage() {
                   Back
                 </Button>
                 <Button
-                  onClick={handleComplete}
+                  onClick={() => {
+                    setDebugMessage('Complete button clicked!');
+                    handleComplete();
+                  }}
                   className="flex-1"
                   disabled={loading}
                   data-testid="button-complete"
