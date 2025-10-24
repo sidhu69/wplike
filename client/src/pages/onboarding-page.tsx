@@ -46,6 +46,11 @@ export default function OnboardingPage() {
 
     if (uploadError) {
       console.error('Upload error:', uploadError);
+      toast({
+        title: 'Upload Failed',
+        description: uploadError.message,
+        variant: 'destructive',
+      });
       return null;
     }
 
@@ -70,20 +75,27 @@ export default function OnboardingPage() {
     let uploadedAvatarUrl = null;
     if (avatarFile) {
       uploadedAvatarUrl = await uploadAvatar();
+      if (avatarFile && !uploadedAvatarUrl) {
+        // Upload failed, stop here
+        setLoading(false);
+        return;
+      }
     }
 
     const { error } = await supabase
-  .from('profiles')
-  .upsert({
-    id: user.id,
-    name: name.trim(),
-    avatar_url: uploadedAvatarUrl,
-    updated_at: new Date().toISOString(),
-  });
+      .from('profiles')
+      .upsert({
+        id: user.id,
+        name: name.trim(),
+        avatar_url: uploadedAvatarUrl,
+        updated_at: new Date().toISOString(),
+      });
+
     if (error) {
+      console.error('Profile save error:', error);
       toast({
         title: 'Error',
-        description: 'Failed to save profile. Please try again.',
+        description: error.message || 'Failed to save profile. Please try again.',
         variant: 'destructive',
       });
       setLoading(false);
@@ -92,7 +104,8 @@ export default function OnboardingPage() {
         title: 'Profile Created!',
         description: 'Welcome to ChatApp',
       });
-      setLocation('/');
+      // Refresh to update auth store
+      window.location.href = '/';
     }
   };
 
@@ -120,6 +133,7 @@ export default function OnboardingPage() {
                   placeholder="John Doe"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && name.trim() && setStep(2)}
                   data-testid="input-name"
                   autoFocus
                 />
@@ -140,7 +154,7 @@ export default function OnboardingPage() {
                   <AvatarImage src={avatarUrl || undefined} />
                   <AvatarFallback className="text-2xl">{getInitials()}</AvatarFallback>
                 </Avatar>
-                
+
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -151,8 +165,20 @@ export default function OnboardingPage() {
                     <Upload className="w-4 h-4 mr-2" />
                     Upload Photo
                   </Button>
+                  {avatarUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setAvatarFile(null);
+                        setAvatarUrl(null);
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  )}
                 </div>
-                
+
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -167,6 +193,7 @@ export default function OnboardingPage() {
                   variant="outline"
                   onClick={() => setStep(1)}
                   className="flex-1"
+                  disabled={loading}
                   data-testid="button-back"
                 >
                   Back
