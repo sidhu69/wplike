@@ -37,11 +37,7 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       
-    - name: Initialize Capacitor
-      run: |
-        npx cap add android
-        
-    - name: Sync Capacitor
+    - name: Sync Capacitor (creates android folder if needed)
       run: npx cap sync android
       
     - name: Make gradlew executable
