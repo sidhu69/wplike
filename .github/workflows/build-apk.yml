@@ -26,8 +26,7 @@ jobs:
       run: npm ci
       
     - name: Build web app (client only)
-      run: npx vite build
-      working-directory: .
+      run: npx vite build --config vite.config.ts
       
     - name: Setup Java
       uses: actions/setup-java@v4
