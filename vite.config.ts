@@ -22,6 +22,8 @@ export default defineConfig({
         ]
       : []),
   ],
+  // Use relative base so built assets work under Capacitor's file scheme
+  base: "./",
   resolve: {
     alias: {
       "@": path.resolve(dirname, "client", "src"),
