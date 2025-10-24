@@ -37,6 +37,10 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       
+    - name: Add Android platform (idempotent)
+      run: |
+        npx cap add android || true
+    
     - name: Sync Capacitor (creates android folder if needed)
       run: npx cap sync android
       
