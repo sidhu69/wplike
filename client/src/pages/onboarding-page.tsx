@@ -73,15 +73,13 @@ export default function OnboardingPage() {
     }
 
     const { error } = await supabase
-      .from('profiles')
-      .upsert({
-        id: user.id,
-        email: user.email!,
-        name: name.trim(),
-        avatar_url: uploadedAvatarUrl,
-        updated_at: new Date().toISOString(),
-      });
-
+  .from('profiles')
+  .upsert({
+    id: user.id,
+    name: name.trim(),
+    avatar_url: uploadedAvatarUrl,
+    updated_at: new Date().toISOString(),
+  });
     if (error) {
       toast({
         title: 'Error',
