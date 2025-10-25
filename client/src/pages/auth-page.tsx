@@ -7,12 +7,14 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { useAuthStore } from '@/stores/authStore';
 import { MessageCircle } from 'lucide-react';
 import { loginSchema, signupSchema, type LoginInput, type SignupInput } from '@shared/schema';
 
 export default function AuthPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { setUserAndProfile } = useAuthStore();
   const [loading, setLoading] = useState(false);
 
   const [loginData, setLoginData] = useState<LoginInput>({
@@ -88,6 +90,9 @@ export default function AuthPage() {
       });
       setLoading(false);
     } else if (data.user) {
+      // Set user in auth store before redirecting
+      setUserAndProfile(data.user, null);
+      
       toast({
         title: 'Account Created!',
         description: 'Please complete your profile setup.',
@@ -203,4 +208,4 @@ export default function AuthPage() {
       </Card>
     </div>
   );
-}
+                    }
