@@ -11,6 +11,7 @@ interface AuthState {
   setUser: (user: User | null) => void;
   setProfile: (profile: Profile | null) => void;
   setLoading: (loading: boolean) => void;
+  setUserAndProfile: (user: User | null, profile: Profile | null) => void;
   signOut: () => Promise<void>;
   initialize: () => Promise<void>;
 }
@@ -24,6 +25,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setUser: (user) => set({ user }),
   setProfile: (profile) => set({ profile }),
   setLoading: (loading) => set({ loading }),
+  setUserAndProfile: (user, profile) => set({ user, profile }),
   
   signOut: async () => {
     await supabase.auth.signOut();
