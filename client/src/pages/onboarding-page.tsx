@@ -40,52 +40,52 @@ export default function OnboardingPage() {
     if (!avatarFile || !user) return null;
 
     try {
-      // DIAGNOSTIC 1: Check session
+      // Check session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      console.log('=== UPLOAD DIAGNOSTICS ===');
-      console.log('Session:', session);
-      console.log('Session Error:', sessionError);
-      console.log('Access Token:', session?.access_token ? 'EXISTS' : 'MISSING');
-      console.log('User from session:', session?.user?.id);
-      console.log('User from store:', user.id);
       
       if (!session || !session.access_token) {
-        setDebugMessage('ERROR: No valid session or access token!');
+        setDebugMessage('ERROR: No session! Please log out and log back in.');
         toast({
-          title: 'Authentication Error',
-          description: 'Session expired. Please log in again.',
+          title: 'Auth Error',
+          description: 'No active session. Please log out and log back in.',
           variant: 'destructive',
         });
         return null;
       }
 
-      // DIAGNOSTIC 2: Check bucket
+      setDebugMessage('Session OK. Checking bucket...');
+
+      // Check bucket exists
       const { data: buckets, error: bucketError } = await supabase.storage.listBuckets();
-      console.log('Available buckets:', buckets);
-      console.log('Bucket error:', bucketError);
       
-      const mediaBucket = buckets?.find(b => b.id === 'media');
-      console.log('Media bucket found:', mediaBucket);
-      console.log('Media bucket public:', mediaBucket?.public);
-
-      if (!mediaBucket) {
-        setDebugMessage('ERROR: Media bucket does not exist!');
+      if (bucketError) {
+        setDebugMessage('Bucket check failed: ' + bucketError.message);
         toast({
-          title: 'Configuration Error',
-          description: 'Storage bucket is not configured. Contact admin.',
+          title: 'Error',
+          description: bucketError.message,
           variant: 'destructive',
         });
         return null;
       }
 
-      setDebugMessage('Uploading image...');
+      const mediaBucket = buckets?.find(b => b.id === 'media');
+      
+      if (!mediaBucket) {
+        setDebugMessage('ERROR: Media bucket not found! Please contact admin.');
+        toast({
+          title: 'Config Error',
+          description: 'Storage not configured. Contact admin.',
+          variant: 'destructive',
+        });
+        return null;
+      }
+
+      setDebugMessage('Bucket found (public: ' + mediaBucket.public + '). Uploading...');
+
       const fileExt = avatarFile.name.split('.').pop();
       const fileName = `${user.id}-${Date.now()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
 
-      console.log('Attempting upload:', filePath);
-
-      // DIAGNOSTIC 3: Try upload with detailed error
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('media')
         .upload(filePath, avatarFile, {
@@ -93,15 +93,8 @@ export default function OnboardingPage() {
           upsert: false
         });
 
-      console.log('Upload response data:', uploadData);
-      console.log('Upload error:', uploadError);
-
       if (uploadError) {
-        console.error('=== UPLOAD FAILED ===');
-        console.error('Error message:', uploadError.message);
-        console.error('Error details:', JSON.stringify(uploadError, null, 2));
-        
-        setDebugMessage(`Upload error: ${uploadError.message}`);
+        setDebugMessage('Upload failed: ' + uploadError.message);
         toast({
           title: 'Upload Failed',
           description: uploadError.message,
@@ -111,13 +104,15 @@ export default function OnboardingPage() {
       }
 
       const { data: urlData } = supabase.storage.from('media').getPublicUrl(filePath);
-      console.log('Public URL:', urlData.publicUrl);
-      setDebugMessage('Image uploaded successfully!');
+      setDebugMessage('Upload successful!');
       return urlData.publicUrl;
     } catch (err: any) {
-      console.error('=== UPLOAD EXCEPTION ===');
-      console.error('Exception:', err);
-      setDebugMessage('Upload exception: ' + err.message);
+      setDebugMessage('Error: ' + err.message);
+      toast({
+        title: 'Error',
+        description: err.message,
+        variant: 'destructive',
+      });
       return null;
     }
   };
@@ -165,14 +160,15 @@ export default function OnboardingPage() {
       
       const profileData = {
         id: user.id,
+        email: user.email!,
         name: name.trim(),
         avatar_url: uploadedAvatarUrl,
         updated_at: new Date().toISOString(),
       };
 
-      setDebugMessage('Profile data: ' + JSON.stringify(profileData));
+      setDebugMessage('Profile data ready');
 
-      const { error, data } = await supabase
+      const { error } = await supabase
         .from('profiles')
         .upsert(profileData)
         .select();
