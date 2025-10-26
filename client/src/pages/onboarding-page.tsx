@@ -40,17 +40,68 @@ export default function OnboardingPage() {
     if (!avatarFile || !user) return null;
 
     try {
+      // DIAGNOSTIC 1: Check session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log('=== UPLOAD DIAGNOSTICS ===');
+      console.log('Session:', session);
+      console.log('Session Error:', sessionError);
+      console.log('Access Token:', session?.access_token ? 'EXISTS' : 'MISSING');
+      console.log('User from session:', session?.user?.id);
+      console.log('User from store:', user.id);
+      
+      if (!session || !session.access_token) {
+        setDebugMessage('ERROR: No valid session or access token!');
+        toast({
+          title: 'Authentication Error',
+          description: 'Session expired. Please log in again.',
+          variant: 'destructive',
+        });
+        return null;
+      }
+
+      // DIAGNOSTIC 2: Check bucket
+      const { data: buckets, error: bucketError } = await supabase.storage.listBuckets();
+      console.log('Available buckets:', buckets);
+      console.log('Bucket error:', bucketError);
+      
+      const mediaBucket = buckets?.find(b => b.id === 'media');
+      console.log('Media bucket found:', mediaBucket);
+      console.log('Media bucket public:', mediaBucket?.public);
+
+      if (!mediaBucket) {
+        setDebugMessage('ERROR: Media bucket does not exist!');
+        toast({
+          title: 'Configuration Error',
+          description: 'Storage bucket is not configured. Contact admin.',
+          variant: 'destructive',
+        });
+        return null;
+      }
+
       setDebugMessage('Uploading image...');
       const fileExt = avatarFile.name.split('.').pop();
       const fileName = `${user.id}-${Date.now()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
+      console.log('Attempting upload:', filePath);
+
+      // DIAGNOSTIC 3: Try upload with detailed error
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('media')
-        .upload(filePath, avatarFile);
+        .upload(filePath, avatarFile, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      console.log('Upload response data:', uploadData);
+      console.log('Upload error:', uploadError);
 
       if (uploadError) {
-        setDebugMessage('Upload error: ' + uploadError.message);
+        console.error('=== UPLOAD FAILED ===');
+        console.error('Error message:', uploadError.message);
+        console.error('Error details:', JSON.stringify(uploadError, null, 2));
+        
+        setDebugMessage(`Upload error: ${uploadError.message}`);
         toast({
           title: 'Upload Failed',
           description: uploadError.message,
@@ -59,10 +110,13 @@ export default function OnboardingPage() {
         return null;
       }
 
-      const { data } = supabase.storage.from('media').getPublicUrl(filePath);
+      const { data: urlData } = supabase.storage.from('media').getPublicUrl(filePath);
+      console.log('Public URL:', urlData.publicUrl);
       setDebugMessage('Image uploaded successfully!');
-      return data.publicUrl;
+      return urlData.publicUrl;
     } catch (err: any) {
+      console.error('=== UPLOAD EXCEPTION ===');
+      console.error('Exception:', err);
       setDebugMessage('Upload exception: ' + err.message);
       return null;
     }
