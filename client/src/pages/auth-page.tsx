@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthStore } from '@/stores/authStore';
-import { MessageCircle } from 'lucide-react';
+import { MessageCircle, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { loginSchema, signupSchema, type LoginInput, type SignupInput } from '@shared/schema';
 
 export default function AuthPage() {
@@ -16,6 +17,7 @@ export default function AuthPage() {
   const { toast } = useToast();
   const { setUserAndProfile } = useAuthStore();
   const [loading, setLoading] = useState(false);
+  const [debugMessage, setDebugMessage] = useState<string>('');
 
   const [loginData, setLoginData] = useState<LoginInput>({
     email: '',
@@ -30,7 +32,7 @@ export default function AuthPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const result = loginSchema.safeParse(loginData);
     if (!result.success) {
       toast({
@@ -42,12 +44,15 @@ export default function AuthPage() {
     }
 
     setLoading(true);
+    setDebugMessage('Logging in...');
+    
     const { error } = await supabase.auth.signInWithPassword({
       email: loginData.email,
       password: loginData.password,
     });
 
     if (error) {
+      setDebugMessage('Login error: ' + error.message);
       toast({
         title: 'Login Failed',
         description: error.message,
@@ -55,17 +60,18 @@ export default function AuthPage() {
       });
       setLoading(false);
     } else {
+      setDebugMessage('Login successful!');
       toast({
         title: 'Welcome back!',
         description: 'You have successfully logged in.',
       });
-      setLocation('/');
+      window.location.href = '/';
     }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const result = signupSchema.safeParse(signupData);
     if (!result.success) {
       toast({
@@ -77,27 +83,69 @@ export default function AuthPage() {
     }
 
     setLoading(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: signupData.email,
-      password: signupData.password,
-    });
-
-    if (error) {
-      toast({
-        title: 'Signup Failed',
-        description: error.message,
-        variant: 'destructive',
+    setDebugMessage('Creating account...');
+    
+    try {
+      // Create auth account
+      const { data, error } = await supabase.auth.signUp({
+        email: signupData.email,
+        password: signupData.password,
       });
-      setLoading(false);
-    } else if (data.user) {
-      // Set user in auth store before redirecting
+
+      if (error) {
+        setDebugMessage('Signup error: ' + error.message);
+        toast({
+          title: 'Signup Failed',
+          description: error.message,
+          variant: 'destructive',
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (!data.user) {
+        setDebugMessage('No user data received');
+        toast({
+          title: 'Signup Failed',
+          description: 'Could not create account. Try again.',
+          variant: 'destructive',
+        });
+        setLoading(false);
+        return;
+      }
+
+      setDebugMessage('Account created! Setting up profile...');
+
+      // Create profile manually (don't rely on trigger)
+      await supabase.from('profiles').upsert({
+        id: data.user.id,
+        email: data.user.email!,
+        name: data.user.email!.split('@')[0],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+      // Set user immediately
       setUserAndProfile(data.user, null);
+
+      setDebugMessage('Success! Redirecting...');
       
       toast({
         title: 'Account Created!',
-        description: 'Please complete your profile setup.',
+        description: 'Complete your profile',
       });
-      setLocation('/onboarding');
+
+      // Force redirect
+      window.location.href = '/onboarding';
+      
+    } catch (err: any) {
+      setDebugMessage('Error: ' + err.message);
+      toast({
+        title: 'Error',
+        description: err.message,
+        variant: 'destructive',
+      });
+      setLoading(false);
     }
   };
 
@@ -112,12 +160,21 @@ export default function AuthPage() {
           <CardDescription>Connect, chat, and compete with friends</CardDescription>
         </CardHeader>
         <CardContent>
+          {debugMessage && (
+            <Alert className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                {debugMessage}
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login" data-testid="tab-login">Login</TabsTrigger>
               <TabsTrigger value="signup" data-testid="tab-signup">Sign Up</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4 mt-4">
                 <div className="space-y-2">
@@ -154,7 +211,7 @@ export default function AuthPage() {
                 </Button>
               </form>
             </TabsContent>
-            
+
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4 mt-4">
                 <div className="space-y-2">
@@ -208,4 +265,4 @@ export default function AuthPage() {
       </Card>
     </div>
   );
-                    }
+}
