@@ -10,59 +10,65 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-    
+
     - name: Setup Java JDK
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
-    
+
     - name: Install root dependencies
       run: npm install --legacy-peer-deps
-    
+
     - name: Install client dependencies
       run: cd client && npm install --legacy-peer-deps
-    
+
+    - name: Create .env file
+      run: |
+        cd client
+        echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" > .env
+        echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
+        echo "Created .env file with:"
+        cat .env
+
     - name: Build React app
       run: cd client && npm run build
       env:
         CI: false
-        VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-        VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-    
+
     - name: Verify build output
       run: |
         echo "Checking if client/dist exists..."
         ls -la client/dist || echo "client/dist not found!"
         echo "Contents of client/dist:"
         ls -la client/dist/ || true
-    
+
     - name: Install Capacitor CLI
       run: npm install -g @capacitor/cli
-    
+
     - name: Add Android platform
       run: npx cap add android || echo "Android platform already exists"
-    
+
     - name: Sync Capacitor
       run: npx cap sync android
-    
+
     - name: Grant execute permission for gradlew
       run: chmod +x android/gradlew
-    
+
     - name: Build Android APK
       run: |
         cd android
         ./gradlew assembleDebug --stacktrace
-    
+
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
