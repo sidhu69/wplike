@@ -22,6 +22,8 @@ function AuthenticatedLayout() {
   // Pages that should not show navigation
   const hideNav = location.startsWith('/chat/') || location === '/search';
 
+  console.log('AuthenticatedLayout rendering, location:', location);
+
   return (
     <div className="flex flex-col h-screen">
       {!hideNav && <TopHeader />}
@@ -39,23 +41,37 @@ function AuthenticatedLayout() {
 
 function Router() {
   const { user, profile, loading, initialized, initialize } = useAuthStore();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
 
   useEffect(() => {
+    console.log('Router: Initializing auth store');
     initialize();
   }, [initialize]);
 
   useEffect(() => {
+    console.log('Router state:', {
+      initialized,
+      loading,
+      hasUser: !!user,
+      hasProfile: !!profile,
+      location
+    });
+
     if (initialized && !loading) {
       if (!user) {
+        console.log('No user, redirecting to /auth');
         setLocation('/auth');
       } else if (user && !profile) {
+        console.log('User exists but no profile, redirecting to /onboarding');
         setLocation('/onboarding');
+      } else if (user && profile) {
+        console.log('User and profile loaded:', { email: user.email, name: profile.name });
       }
     }
-  }, [user, profile, loading, initialized, setLocation]);
+  }, [user, profile, loading, initialized, setLocation, location]);
 
   if (!initialized || loading) {
+    console.log('Router: Loading...', { initialized, loading });
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center space-y-2">
@@ -65,6 +81,8 @@ function Router() {
       </div>
     );
   }
+
+  console.log('Router: Rendering routes', { hasUser: !!user, hasProfile: !!profile });
 
   return (
     <Switch>
