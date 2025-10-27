@@ -86,7 +86,7 @@ export default function OnboardingPage() {
       setDebugMessage('Getting public URL...');
       const { data: urlData } = supabase.storage.from('media').getPublicUrl(filePath);
       
-      setDebugMessage('Upload successful!');
+      setDebugMessage('Upload successful! URL: ' + urlData.publicUrl);
       return urlData.publicUrl;
     } catch (err: any) {
       setDebugMessage('Exception: ' + err.message);
@@ -139,6 +139,7 @@ export default function OnboardingPage() {
           setLoading(false);
           return;
         }
+        setDebugMessage('Avatar uploaded successfully!');
       } else {
         setDebugMessage('No avatar selected, skipping upload');
       }
@@ -153,7 +154,9 @@ export default function OnboardingPage() {
         updated_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase
+      console.log('Saving profile:', profileData);
+
+      const { data, error } = await supabase
         .from('profiles')
         .upsert(profileData)
         .select();
@@ -167,20 +170,23 @@ export default function OnboardingPage() {
           variant: 'destructive',
         });
         setLoading(false);
-      } else {
-        setDebugMessage('Profile saved! Redirecting...');
-        toast({
-          title: 'Profile Created!',
-          description: 'Welcome to ChatApp',
-        });
-        
-        // Reinitialize to load the profile
-        await initialize();
-        
-        setTimeout(() => {
-          setLocation('/');
-        }, 1000);
+        return;
       }
+
+      setDebugMessage('Profile saved! Data: ' + JSON.stringify(data));
+      
+      toast({
+        title: 'Profile Created!',
+        description: 'Welcome to ChatApp',
+      });
+      
+      setDebugMessage('Redirecting to home...');
+      
+      // Redirect without waiting for initialize
+      setTimeout(() => {
+        setLocation('/');
+      }, 500);
+      
     } catch (err: any) {
       setDebugMessage('Exception: ' + err.message);
       console.error('Exception:', err);
