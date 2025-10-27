@@ -40,6 +40,8 @@ export default function OnboardingPage() {
     if (!avatarFile || !user) return null;
 
     try {
+      setDebugMessage('Checking session...');
+      
       // Check session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
@@ -53,34 +55,7 @@ export default function OnboardingPage() {
         return null;
       }
 
-      setDebugMessage('Session OK. Checking bucket...');
-
-      // Check bucket exists
-      const { data: buckets, error: bucketError } = await supabase.storage.listBuckets();
-      
-      if (bucketError) {
-        setDebugMessage('Bucket check failed: ' + bucketError.message);
-        toast({
-          title: 'Error',
-          description: bucketError.message,
-          variant: 'destructive',
-        });
-        return null;
-      }
-
-      const mediaBucket = buckets?.find(b => b.id === 'media');
-      
-      if (!mediaBucket) {
-        setDebugMessage('ERROR: Media bucket not found! Please contact admin.');
-        toast({
-          title: 'Config Error',
-          description: 'Storage not configured. Contact admin.',
-          variant: 'destructive',
-        });
-        return null;
-      }
-
-      setDebugMessage('Bucket found (public: ' + mediaBucket.public + '). Uploading...');
+      setDebugMessage('Session verified. Uploading to media bucket...');
 
       const fileExt = avatarFile.name.split('.').pop();
       const fileName = `${user.id}-${Date.now()}.${fileExt}`;
@@ -95,6 +70,7 @@ export default function OnboardingPage() {
 
       if (uploadError) {
         setDebugMessage('Upload failed: ' + uploadError.message);
+        console.error('Upload error details:', uploadError);
         toast({
           title: 'Upload Failed',
           description: uploadError.message,
@@ -103,11 +79,14 @@ export default function OnboardingPage() {
         return null;
       }
 
+      setDebugMessage('Getting public URL...');
       const { data: urlData } = supabase.storage.from('media').getPublicUrl(filePath);
+      
       setDebugMessage('Upload successful!');
       return urlData.publicUrl;
     } catch (err: any) {
-      setDebugMessage('Error: ' + err.message);
+      setDebugMessage('Exception: ' + err.message);
+      console.error('Upload exception:', err);
       toast({
         title: 'Error',
         description: err.message,
