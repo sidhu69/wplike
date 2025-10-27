@@ -42,14 +42,14 @@ export default function AuthPage() {
           .single();
 
         if (!profile || !profile.name) {
-          setLocation('/onboarding');
+          window.location.href = '/onboarding';
         } else {
-          setLocation('/');
+          window.location.href = '/';
         }
       }
     };
     checkSession();
-  }, [setLocation]);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,7 +87,10 @@ export default function AuthPage() {
         description: 'You have successfully logged in.',
       });
       
-      setTimeout(() => setLocation('/'), 500);
+      // Force page reload to reinitialize auth store
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 500);
     }
   };
 
@@ -155,7 +158,10 @@ export default function AuthPage() {
         description: 'Complete your profile',
       });
 
-      setTimeout(() => setLocation('/onboarding'), 500);
+      // Force page reload to go to onboarding
+      setTimeout(() => {
+        window.location.href = '/onboarding';
+      }, 500);
       
     } catch (err: any) {
       setDebugMessage('Error: ' + err.message);
