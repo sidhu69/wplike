@@ -174,7 +174,9 @@ export default function OnboardingPage() {
           description: 'Welcome to ChatApp',
         });
         
-        // Use setLocation instead of window.location for SPA navigation
+        // Reinitialize to load the profile
+        await initialize();
+        
         setTimeout(() => {
           setLocation('/');
         }, 1000);
