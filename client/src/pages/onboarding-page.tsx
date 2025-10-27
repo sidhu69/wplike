@@ -173,19 +173,17 @@ export default function OnboardingPage() {
         return;
       }
 
-      setDebugMessage('Profile saved! Data: ' + JSON.stringify(data));
+      setDebugMessage('Profile saved! Reloading page...');
       
       toast({
         title: 'Profile Created!',
         description: 'Welcome to ChatApp',
       });
       
-      setDebugMessage('Redirecting to home...');
-      
-      // Redirect without waiting for initialize
+      // Force a full page reload to reset the store
       setTimeout(() => {
-        setLocation('/');
-      }, 500);
+        window.location.href = '/';
+      }, 1000);
       
     } catch (err: any) {
       setDebugMessage('Exception: ' + err.message);
