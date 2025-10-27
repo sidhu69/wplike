@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useLocation } from 'wouter';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,15 +38,12 @@ export default function AuthPage() {
     }
 
     setLoading(true);
-    console.log('Logging in...');
-    
     const { error } = await supabase.auth.signInWithPassword({
       email: loginData.email,
       password: loginData.password,
     });
 
     if (error) {
-      console.error('Login error:', error);
       toast({
         title: 'Login Failed',
         description: error.message,
@@ -55,13 +51,10 @@ export default function AuthPage() {
       });
       setLoading(false);
     } else {
-      console.log('Login successful! Reloading page...');
       toast({
         title: 'Welcome back!',
         description: 'You have successfully logged in.',
       });
-      
-      // Force full page reload
       setTimeout(() => {
         window.location.href = '/';
       }, 500);
@@ -82,15 +75,12 @@ export default function AuthPage() {
     }
 
     setLoading(true);
-    console.log('Creating account...');
-    
     const { data, error } = await supabase.auth.signUp({
       email: signupData.email,
       password: signupData.password,
     });
 
     if (error) {
-      console.error('Signup error:', error);
       toast({
         title: 'Signup Failed',
         description: error.message,
@@ -98,18 +88,11 @@ export default function AuthPage() {
       });
       setLoading(false);
     } else if (data.user) {
-      console.log('Account created! Waiting for session...');
-      
-      // Wait for session to persist
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      console.log('Redirecting to onboarding...');
       toast({
         title: 'Account Created!',
         description: 'Please complete your profile setup.',
       });
-      
-      // Force full page reload
       setTimeout(() => {
         window.location.href = '/onboarding';
       }, 500);
