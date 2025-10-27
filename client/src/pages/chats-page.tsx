@@ -5,9 +5,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, MessageCircle, Search } from 'lucide-react';
+import { MessageCircle, Search } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { ChatWithProfile } from '@shared/schema';
 
@@ -15,7 +14,7 @@ export default function ChatsPage() {
   const [, setLocation] = useLocation();
   const { user } = useAuthStore();
 
-  const { data: chats, isLoading, error } = useQuery<ChatWithProfile[]>({
+  const { data: chats, isLoading } = useQuery<ChatWithProfile[]>({
     queryKey: ['/api/chats'],
     queryFn: async () => {
       if (!user) return [];
@@ -27,10 +26,9 @@ export default function ChatsPage() {
         .order('last_message_at', { ascending: false, nullsFirst: false });
 
       if (error) throw error;
-      if (!chatsData || chatsData.length === 0) return [];
 
       const chatsWithProfiles = await Promise.all(
-        chatsData.map(async (chat) => {
+        (chatsData || []).map(async (chat) => {
           const friendId = chat.user1_id === user.id ? chat.user2_id : chat.user1_id;
 
           const { data: friendProfile } = await supabase
@@ -48,12 +46,7 @@ export default function ChatsPage() {
 
           return {
             ...chat,
-            friend_profile: friendProfile || {
-              id: friendId,
-              name: 'Unknown User',
-              email: '',
-              avatar_url: null,
-            },
+            friend_profile: friendProfile!,
             unread_count: unreadCount || 0,
           };
         })
@@ -67,20 +60,6 @@ export default function ChatsPage() {
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
-
-  if (error) {
-    return (
-      <div className="h-full flex items-center justify-center p-8">
-        <Alert variant="destructive" className="max-w-md">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            <div className="font-bold mb-2">Error loading chats</div>
-            <div className="text-sm">{error instanceof Error ? error.message : 'Unknown error'}</div>
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
 
   if (isLoading) {
     return (
@@ -101,23 +80,17 @@ export default function ChatsPage() {
   if (!chats || chats.length === 0) {
     return (
       <div className="h-full flex items-center justify-center p-8">
-        <div className="text-center space-y-6 max-w-sm">
-          <div className="mx-auto w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center">
-            <MessageCircle className="w-12 h-12 text-primary" />
+        <div className="text-center space-y-6">
+          <div className="mx-auto w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
+            <MessageCircle className="w-10 h-10 text-primary" />
           </div>
-          
           <div className="space-y-2">
-            <h2 className="text-xl font-semibold">No conversations yet</h2>
-            <p className="text-muted-foreground">
-              Start chatting by searching for friends and sending them a message
+            <h2 className="text-lg font-semibold">No conversations yet</h2>
+            <p className="text-sm text-muted-foreground">
+              Use the search icon to find and add friends
             </p>
           </div>
-
-          <Button 
-            onClick={() => setLocation('/search')}
-            className="gap-2"
-            size="lg"
-          >
+          <Button onClick={() => setLocation('/search')} className="gap-2">
             <Search className="w-4 h-4" />
             Find Friends
           </Button>
@@ -132,7 +105,7 @@ export default function ChatsPage() {
         <div
           key={chat.id}
           onClick={() => setLocation(`/chat/${chat.id}`)}
-          className="flex items-center gap-3 p-4 border-b hover:bg-accent cursor-pointer active:bg-accent/80 transition-colors"
+          className="flex items-center gap-3 p-4 border-b hover:bg-accent cursor-pointer active:bg-accent/80"
           data-testid={`chat-item-${chat.id}`}
         >
           <Avatar className="w-12 h-12">
