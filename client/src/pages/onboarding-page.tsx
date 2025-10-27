@@ -189,20 +189,29 @@ export default function OnboardingPage() {
     return name.trim().split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
   };
 
-  // Check if user exists
+    // Check if user exists
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            No user session found. Please log in again.
-          </AlertDescription>
-        </Alert>
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 space-y-4">
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                No user session found. Please log in again.
+              </AlertDescription>
+            </Alert>
+            <Button 
+              onClick={() => window.location.href = '/auth'} 
+              className="w-full"
+            >
+              Go to Login
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-primary/10 to-background p-4">
       <Card className="w-full max-w-md">
