@@ -5,7 +5,6 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuthStore } from "@/stores/authStore";
-import { DebugOverlay } from "@/components/debug-overlay";
 
 import AuthPage from "@/pages/auth-page";
 import OnboardingPage from "@/pages/onboarding-page";
@@ -19,18 +18,22 @@ import TopHeader from "@/components/layout/top-header";
 
 function AuthenticatedLayout() {
   const [location] = useLocation();
+
+  // Pages that should not show navigation
   const hideNav = location.startsWith('/chat/') || location === '/search';
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen bg-background">
       {!hideNav && <TopHeader />}
-      <Switch>
-        <Route path="/" component={ChatsPage} />
-        <Route path="/chat/:id" component={ChatDetailPage} />
-        <Route path="/search" component={SearchPage} />
-        <Route path="/rankings" component={RankingsPage} />
-        <Route path="/profile" component={ProfilePage} />
-      </Switch>
+      <div className="flex-1 overflow-hidden">
+        <Switch>
+          <Route path="/" component={ChatsPage} />
+          <Route path="/chat/:id" component={ChatDetailPage} />
+          <Route path="/search" component={SearchPage} />
+          <Route path="/rankings" component={RankingsPage} />
+          <Route path="/profile" component={ProfilePage} />
+        </Switch>
+      </div>
       {!hideNav && <BottomNav />}
     </div>
   );
@@ -38,7 +41,7 @@ function AuthenticatedLayout() {
 
 function Router() {
   const { user, profile, loading, initialized, initialize } = useAuthStore();
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
 
   useEffect(() => {
     initialize();
@@ -56,7 +59,7 @@ function Router() {
 
   if (!initialized || loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-background">
         <div className="text-center space-y-2">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
           <p className="text-sm text-muted-foreground">Loading...</p>
@@ -80,7 +83,6 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <DebugOverlay />
         <Toaster />
         <Router />
       </TooltipProvider>
