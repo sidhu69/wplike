@@ -5,6 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuthStore } from "@/stores/authStore";
+import { DebugOverlay } from "@/components/debug-overlay";
 
 import AuthPage from "@/pages/auth-page";
 import OnboardingPage from "@/pages/onboarding-page";
@@ -18,11 +19,7 @@ import TopHeader from "@/components/layout/top-header";
 
 function AuthenticatedLayout() {
   const [location] = useLocation();
-
-  // Pages that should not show navigation
   const hideNav = location.startsWith('/chat/') || location === '/search';
-
-  console.log('AuthenticatedLayout rendering, location:', location);
 
   return (
     <div className="flex flex-col h-screen">
@@ -44,34 +41,20 @@ function Router() {
   const [location, setLocation] = useLocation();
 
   useEffect(() => {
-    console.log('Router: Initializing auth store');
     initialize();
   }, [initialize]);
 
   useEffect(() => {
-    console.log('Router state:', {
-      initialized,
-      loading,
-      hasUser: !!user,
-      hasProfile: !!profile,
-      location
-    });
-
     if (initialized && !loading) {
       if (!user) {
-        console.log('No user, redirecting to /auth');
         setLocation('/auth');
       } else if (user && !profile) {
-        console.log('User exists but no profile, redirecting to /onboarding');
         setLocation('/onboarding');
-      } else if (user && profile) {
-        console.log('User and profile loaded:', { email: user.email, name: profile.name });
       }
     }
-  }, [user, profile, loading, initialized, setLocation, location]);
+  }, [user, profile, loading, initialized, setLocation]);
 
   if (!initialized || loading) {
-    console.log('Router: Loading...', { initialized, loading });
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center space-y-2">
@@ -81,8 +64,6 @@ function Router() {
       </div>
     );
   }
-
-  console.log('Router: Rendering routes', { hasUser: !!user, hasProfile: !!profile });
 
   return (
     <Switch>
@@ -99,6 +80,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <DebugOverlay />
         <Toaster />
         <Router />
       </TooltipProvider>
