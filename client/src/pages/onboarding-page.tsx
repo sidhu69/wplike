@@ -1,165 +1,189 @@
-import { useState, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { useAuthStore } from '@/stores/authStore';
-import { MessageCircle, AlertCircle } from 'lucide-react';
+import { Upload, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { loginSchema, signupSchema, type LoginInput, type SignupInput } from '@shared/schema';
 
-export default function AuthPage() {
+export default function OnboardingPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { setUserAndProfile } = useAuthStore();
+  const { user, initialize } = useAuthStore();
+  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [name, setName] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [debugMessage, setDebugMessage] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [loginData, setLoginData] = useState<LoginInput>({
-    email: '',
-    password: '',
-  });
-
-  const [signupData, setSignupData] = useState<SignupInput>({
-    email: '',
-    password: '',
-    confirmPassword: '',
-  });
-
-  // Check for existing session on mount
+  // Re-check session on mount
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setDebugMessage('Session found, redirecting...');
-        setUserAndProfile(session.user, null);
-        window.location.href = '/onboarding';
+    const checkUser = async () => {
+      if (!user) {
+        setDebugMessage('No user in store, checking session...');
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setDebugMessage('Session found! Reinitializing...');
+          await initialize();
+        } else {
+          setDebugMessage('No session found');
+        }
+      } else {
+        setDebugMessage('User loaded: ' + user.email);
       }
     };
-    checkSession();
-  }, [setUserAndProfile]);
+    checkUser();
+  }, [user, initialize]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const result = loginSchema.safeParse(loginData);
-    if (!result.success) {
-      toast({
-        title: 'Validation Error',
-        description: result.error.errors[0].message,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setLoading(true);
-    setDebugMessage('Logging in...');
-    
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: loginData.email,
-      password: loginData.password,
-    });
-
-    if (error) {
-      setDebugMessage('Login error: ' + error.message);
-      toast({
-        title: 'Login Failed',
-        description: error.message,
-        variant: 'destructive',
-      });
-      setLoading(false);
-    } else if (data.user) {
-      setDebugMessage('Login successful!');
-      setUserAndProfile(data.user, null);
-      toast({
-        title: 'Welcome back!',
-        description: 'You have successfully logged in.',
-      });
-      window.location.href = '/';
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAvatarFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+      setDebugMessage('Image selected: ' + file.name);
     }
   };
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const uploadAvatar = async (): Promise<string | null> => {
+    if (!avatarFile || !user) return null;
 
-    const result = signupSchema.safeParse(signupData);
-    if (!result.success) {
-      toast({
-        title: 'Validation Error',
-        description: result.error.errors[0].message,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setLoading(true);
-    setDebugMessage('Creating account...');
-    
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: signupData.email,
-        password: signupData.password,
-        options: {
-          emailRedirectTo: window.location.origin,
-        }
-      });
+      setDebugMessage('Uploading to storage...');
 
-      if (error) {
-        setDebugMessage('Signup error: ' + error.message);
+      const fileExt = avatarFile.name.split('.').pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('media')
+        .upload(filePath, avatarFile, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        setDebugMessage('Upload failed: ' + uploadError.message);
+        console.error('Upload error:', uploadError);
         toast({
-          title: 'Signup Failed',
-          description: error.message,
+          title: 'Upload Failed',
+          description: uploadError.message,
           variant: 'destructive',
         });
-        setLoading(false);
-        return;
+        return null;
       }
 
-      if (!data.user) {
-        setDebugMessage('No user data received');
-        toast({
-          title: 'Signup Failed',
-          description: 'Could not create account. Try again.',
-          variant: 'destructive',
-        });
-        setLoading(false);
-        return;
-      }
-
-      setDebugMessage('Account created! User ID: ' + data.user.id);
-
-      // IMPORTANT: Set user in store immediately
-      setUserAndProfile(data.user, null);
-
-      // Create profile manually
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        email: data.user.email!,
-        name: data.user.email!.split('@')[0],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
-
-      setDebugMessage('Profile created! Redirecting...');
+      setDebugMessage('Getting public URL...');
+      const { data: urlData } = supabase.storage.from('media').getPublicUrl(filePath);
       
-      toast({
-        title: 'Account Created!',
-        description: 'Complete your profile',
-      });
-
-      // Force redirect to onboarding
-      setTimeout(() => {
-        window.location.href = '/onboarding';
-      }, 500);
-      
+      setDebugMessage('Upload successful!');
+      return urlData.publicUrl;
     } catch (err: any) {
-      setDebugMessage('Error: ' + err.message);
+      setDebugMessage('Exception: ' + err.message);
+      console.error('Upload exception:', err);
       toast({
         title: 'Error',
+        description: err.message,
+        variant: 'destructive',
+      });
+      return null;
+    }
+  };
+
+  const handleComplete = async () => {
+    try {
+      setDebugMessage('Starting profile creation...');
+      
+      if (!name.trim()) {
+        setDebugMessage('Name is required!');
+        toast({
+          title: 'Name Required',
+          description: 'Please enter your name to continue',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!user) {
+        setDebugMessage('No user found! Checking session...');
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          toast({
+            title: 'Session Error',
+            description: 'Please log in again.',
+            variant: 'destructive',
+          });
+          setLocation('/auth');
+          return;
+        }
+      }
+
+      setLoading(true);
+      setDebugMessage('User ID: ' + user!.id);
+
+      let uploadedAvatarUrl = null;
+      if (avatarFile) {
+        setDebugMessage('Uploading avatar...');
+        uploadedAvatarUrl = await uploadAvatar();
+        if (avatarFile && !uploadedAvatarUrl) {
+          setLoading(false);
+          return;
+        }
+      } else {
+        setDebugMessage('No avatar selected, skipping upload');
+      }
+
+      setDebugMessage('Saving profile to database...');
+      
+      const profileData = {
+        id: user!.id,
+        email: user!.email!,
+        name: name.trim(),
+        avatar_url: uploadedAvatarUrl,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('profiles')
+        .upsert(profileData)
+        .select();
+
+      if (error) {
+        setDebugMessage('Database error: ' + error.message);
+        console.error('Profile save error:', error);
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to save profile. Please try again.',
+          variant: 'destructive',
+        });
+        setLoading(false);
+      } else {
+        setDebugMessage('Profile saved! Redirecting...');
+        toast({
+          title: 'Profile Created!',
+          description: 'Welcome to ChatApp',
+        });
+        
+        // Use setLocation instead of window.location for SPA navigation
+        setTimeout(() => {
+          setLocation('/');
+        }, 1000);
+      }
+    } catch (err: any) {
+      setDebugMessage('Exception: ' + err.message);
+      console.error('Exception:', err);
+      toast({
+        title: 'Unexpected Error',
         description: err.message,
         variant: 'destructive',
       });
@@ -167,118 +191,152 @@ export default function AuthPage() {
     }
   };
 
+  const getInitials = () => {
+    return name.trim().split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
+  };
+
+  // Check if user exists - with back button
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 space-y-4">
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {debugMessage || 'No user session found. Please log in again.'}
+              </AlertDescription>
+            </Alert>
+            <Button 
+              onClick={() => setLocation('/auth')} 
+              className="w-full"
+            >
+              Go to Login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-primary/10 to-background p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-16 h-16 rounded-full bg-primary flex items-center justify-center mb-2">
-            <MessageCircle className="w-8 h-8 text-primary-foreground" />
-          </div>
-          <CardTitle className="text-2xl">ChatApp</CardTitle>
-          <CardDescription>Connect, chat, and compete with friends</CardDescription>
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">Complete Your Profile</CardTitle>
+          <CardDescription>
+            {step === 1 ? 'Tell us your name' : 'Add a profile picture (optional)'}
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
+          {/* Debug Message */}
           {debugMessage && (
-            <Alert className="mb-4">
-              <AlertCircle className="h-4 w-4" />
+            <Alert>
               <AlertDescription className="text-xs">
                 {debugMessage}
               </AlertDescription>
             </Alert>
           )}
 
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login" data-testid="tab-login">Login</TabsTrigger>
-              <TabsTrigger value="signup" data-testid="tab-signup">Sign Up</TabsTrigger>
-            </TabsList>
+          {step === 1 ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="John Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && name.trim() && setStep(2)}
+                  data-testid="input-name"
+                  autoFocus
+                />
+              </div>
+              <Button
+                onClick={() => {
+                  setDebugMessage('Moving to step 2 with name: ' + name);
+                  setStep(2);
+                }}
+                className="w-full"
+                disabled={!name.trim()}
+                data-testid="button-continue"
+              >
+                Continue
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="flex flex-col items-center gap-4">
+                <Avatar className="w-32 h-32">
+                  <AvatarImage src={avatarUrl || undefined} />
+                  <AvatarFallback className="text-2xl">{getInitials()}</AvatarFallback>
+                </Avatar>
 
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={loginData.email}
-                    onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
-                    required
-                    data-testid="input-login-email"
-                  />
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setDebugMessage('Opening file picker...');
+                      fileInputRef.current?.click();
+                    }}
+                    data-testid="button-upload"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload Photo
+                  </Button>
+                  {avatarUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setAvatarFile(null);
+                        setAvatarUrl(null);
+                        setDebugMessage('Avatar removed');
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={loginData.password}
-                    onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                    required
-                    data-testid="input-login-password"
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={loading}
-                  data-testid="button-login"
-                >
-                  {loading ? 'Logging in...' : 'Log In'}
-                </Button>
-              </form>
-            </TabsContent>
 
-            <TabsContent value="signup">
-              <form onSubmit={handleSignup} className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={signupData.email}
-                    onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
-                    required
-                    data-testid="input-signup-email"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={signupData.password}
-                    onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
-                    required
-                    data-testid="input-signup-password"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-confirm">Confirm Password</Label>
-                  <Input
-                    id="signup-confirm"
-                    type="password"
-                    placeholder="••••••••"
-                    value={signupData.confirmPassword}
-                    onChange={(e) => setSignupData({ ...signupData, confirmPassword: e.target.value })}
-                    required
-                    data-testid="input-signup-confirm"
-                  />
-                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+              </div>
+
+              <div className="flex gap-2">
                 <Button
-                  type="submit"
-                  className="w-full"
+                  variant="outline"
+                  onClick={() => {
+                    setDebugMessage('Back to step 1');
+                    setStep(1);
+                  }}
+                  className="flex-1"
                   disabled={loading}
-                  data-testid="button-signup"
+                  data-testid="button-back"
                 >
-                  {loading ? 'Creating account...' : 'Sign Up'}
+                  Back
                 </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+                <Button
+                  onClick={() => {
+                    setDebugMessage('Complete button clicked!');
+                    handleComplete();
+                  }}
+                  className="flex-1"
+                  disabled={loading}
+                  data-testid="button-complete"
+                >
+                  {loading ? 'Saving...' : 'Complete'}
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
