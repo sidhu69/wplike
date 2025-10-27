@@ -6,7 +6,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { AlertCircle, MessageCircle, Search } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { ChatWithProfile } from '@shared/schema';
 
@@ -17,12 +18,7 @@ export default function ChatsPage() {
   const { data: chats, isLoading, error } = useQuery<ChatWithProfile[]>({
     queryKey: ['/api/chats'],
     queryFn: async () => {
-      if (!user) {
-        console.log('ChatsPage: No user found');
-        return [];
-      }
-
-      console.log('ChatsPage: Fetching chats for user:', user.id);
+      if (!user) return [];
 
       const { data: chatsData, error } = await supabase
         .from('chats')
@@ -30,30 +26,18 @@ export default function ChatsPage() {
         .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
         .order('last_message_at', { ascending: false, nullsFirst: false });
 
-      if (error) {
-        console.error('ChatsPage: Error fetching chats:', error);
-        throw error;
-      }
-
-      console.log('ChatsPage: Found chats:', chatsData?.length || 0);
-
-      if (!chatsData || chatsData.length === 0) {
-        return [];
-      }
+      if (error) throw error;
+      if (!chatsData || chatsData.length === 0) return [];
 
       const chatsWithProfiles = await Promise.all(
         chatsData.map(async (chat) => {
           const friendId = chat.user1_id === user.id ? chat.user2_id : chat.user1_id;
 
-          const { data: friendProfile, error: profileError } = await supabase
+          const { data: friendProfile } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', friendId)
             .single();
-
-          if (profileError) {
-            console.error('ChatsPage: Error fetching friend profile:', profileError);
-          }
 
           const { count: unreadCount } = await supabase
             .from('messages')
@@ -75,7 +59,6 @@ export default function ChatsPage() {
         })
       );
 
-      console.log('ChatsPage: Loaded chats with profiles');
       return chatsWithProfiles;
     },
     enabled: !!user,
@@ -85,12 +68,9 @@ export default function ChatsPage() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  console.log('ChatsPage rendering:', { isLoading, hasChats: !!chats, error: !!error });
-
   if (error) {
-    console.error('ChatsPage: Render error:', error);
     return (
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="h-full flex items-center justify-center p-8">
         <Alert variant="destructive" className="max-w-md">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
@@ -103,9 +83,8 @@ export default function ChatsPage() {
   }
 
   if (isLoading) {
-    console.log('ChatsPage: Showing loading skeleton');
     return (
-      <div className="flex-1 overflow-y-auto">
+      <div className="h-full overflow-y-auto">
         {[...Array(8)].map((_, i) => (
           <div key={i} className="flex items-center gap-3 p-4 border-b">
             <Skeleton className="w-12 h-12 rounded-full" />
@@ -120,28 +99,40 @@ export default function ChatsPage() {
   }
 
   if (!chats || chats.length === 0) {
-    console.log('ChatsPage: No chats found');
     return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="text-center space-y-2">
-          <p className="text-muted-foreground">No conversations yet</p>
-          <p className="text-sm text-muted-foreground">
-            Use the search icon to find and add friends
-          </p>
+      <div className="h-full flex items-center justify-center p-8">
+        <div className="text-center space-y-6 max-w-sm">
+          <div className="mx-auto w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center">
+            <MessageCircle className="w-12 h-12 text-primary" />
+          </div>
+          
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold">No conversations yet</h2>
+            <p className="text-muted-foreground">
+              Start chatting by searching for friends and sending them a message
+            </p>
+          </div>
+
+          <Button 
+            onClick={() => setLocation('/search')}
+            className="gap-2"
+            size="lg"
+          >
+            <Search className="w-4 h-4" />
+            Find Friends
+          </Button>
         </div>
       </div>
     );
   }
 
-  console.log('ChatsPage: Rendering', chats.length, 'chats');
-
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="h-full overflow-y-auto">
       {chats.map((chat) => (
         <div
           key={chat.id}
           onClick={() => setLocation(`/chat/${chat.id}`)}
-          className="flex items-center gap-3 p-4 border-b hover:bg-accent cursor-pointer active:bg-accent/80"
+          className="flex items-center gap-3 p-4 border-b hover:bg-accent cursor-pointer active:bg-accent/80 transition-colors"
           data-testid={`chat-item-${chat.id}`}
         >
           <Avatar className="w-12 h-12">
