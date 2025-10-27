@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -7,15 +7,12 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { MessageCircle, AlertCircle } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { MessageCircle } from 'lucide-react';
 import { loginSchema, signupSchema, type LoginInput, type SignupInput } from '@shared/schema';
 
 export default function AuthPage() {
-  const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [debugMessage, setDebugMessage] = useState<string>('');
 
   const [loginData, setLoginData] = useState<LoginInput>({
     email: '',
@@ -27,29 +24,6 @@ export default function AuthPage() {
     password: '',
     confirmPassword: '',
   });
-
-  // Check for existing session on mount
-  useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setDebugMessage('Session found, checking profile...');
-        
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-
-        if (!profile || !profile.name) {
-          window.location.href = '/onboarding';
-        } else {
-          window.location.href = '/';
-        }
-      }
-    };
-    checkSession();
-  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,29 +39,29 @@ export default function AuthPage() {
     }
 
     setLoading(true);
-    setDebugMessage('Logging in...');
+    console.log('Logging in...');
     
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email: loginData.email,
       password: loginData.password,
     });
 
     if (error) {
-      setDebugMessage('Login error: ' + error.message);
+      console.error('Login error:', error);
       toast({
         title: 'Login Failed',
         description: error.message,
         variant: 'destructive',
       });
       setLoading(false);
-    } else if (data.user) {
-      setDebugMessage('Login successful! Redirecting...');
+    } else {
+      console.log('Login successful! Reloading page...');
       toast({
         title: 'Welcome back!',
         description: 'You have successfully logged in.',
       });
       
-      // Force page reload to reinitialize auth store
+      // Force full page reload
       setTimeout(() => {
         window.location.href = '/';
       }, 500);
@@ -108,69 +82,37 @@ export default function AuthPage() {
     }
 
     setLoading(true);
-    setDebugMessage('Creating account...');
+    console.log('Creating account...');
     
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: signupData.email,
-        password: signupData.password,
-      });
+    const { data, error } = await supabase.auth.signUp({
+      email: signupData.email,
+      password: signupData.password,
+    });
 
-      if (error) {
-        setDebugMessage('Signup error: ' + error.message);
-        toast({
-          title: 'Signup Failed',
-          description: error.message,
-          variant: 'destructive',
-        });
-        setLoading(false);
-        return;
-      }
-
-      if (!data.user) {
-        setDebugMessage('No user data received');
-        toast({
-          title: 'Signup Failed',
-          description: 'Could not create account. Try again.',
-          variant: 'destructive',
-        });
-        setLoading(false);
-        return;
-      }
-
-      setDebugMessage('Account created! Waiting for session...');
-
-      // Wait for session to be fully persisted
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Verify session exists
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        setDebugMessage('Session not created. Retrying...');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-
-      setDebugMessage('Session ready! Redirecting to onboarding...');
-      
+    if (error) {
+      console.error('Signup error:', error);
       toast({
-        title: 'Account Created!',
-        description: 'Complete your profile',
-      });
-
-      // Force page reload to go to onboarding
-      setTimeout(() => {
-        window.location.href = '/onboarding';
-      }, 500);
-      
-    } catch (err: any) {
-      setDebugMessage('Error: ' + err.message);
-      toast({
-        title: 'Error',
-        description: err.message,
+        title: 'Signup Failed',
+        description: error.message,
         variant: 'destructive',
       });
       setLoading(false);
+    } else if (data.user) {
+      console.log('Account created! Waiting for session...');
+      
+      // Wait for session to persist
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      console.log('Redirecting to onboarding...');
+      toast({
+        title: 'Account Created!',
+        description: 'Please complete your profile setup.',
+      });
+      
+      // Force full page reload
+      setTimeout(() => {
+        window.location.href = '/onboarding';
+      }, 500);
     }
   };
 
@@ -185,15 +127,6 @@ export default function AuthPage() {
           <CardDescription>Connect, chat, and compete with friends</CardDescription>
         </CardHeader>
         <CardContent>
-          {debugMessage && (
-            <Alert className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-xs">
-                {debugMessage}
-              </AlertDescription>
-            </Alert>
-          )}
-
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login" data-testid="tab-login">Login</TabsTrigger>
